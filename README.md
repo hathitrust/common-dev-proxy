@@ -3,6 +3,12 @@ How to work on `common` against real data.
 Assuming `node` v16, which is what we use for `common`.
 
 ```
+# in your workspace...
+$ git clone git@github.com:hathitrust/common.git
+$ cd common/web/alicorn
+$ npm install
+
+# in your workspace, next to `common`
 $ git clone git@github.com:hathitrust/common-dev-proxy.git
 $ cd common-dev-proxy
 $ npm install
