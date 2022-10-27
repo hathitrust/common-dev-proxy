@@ -48,6 +48,7 @@ function listen(options) {
 
   app.use('/common/unicorn', express.static(path.join(rootPath, 'common/web/unicorn')));
   app.use('/common/alicorn', express.static(path.join(rootPath, 'common/web/alicorn')));
+  app.use('/common/mdp', express.static(path.join(rootPath, 'common/web/mdp')));
 
   app.use(/\/Search|\/Record/, proxy(`https://${catalogProxy}/`, {
     https: true,
@@ -59,9 +60,26 @@ function listen(options) {
 
   app.use('/cgi', proxy(`https://${babelProxy}/`, {
     https: true,
+    proxyReqOptDecorator: function(proxyReqOpts, srcReq) {
+      return proxyReqOpts;
+    },
     proxyReqPathResolver: function (req) {
       if ( argv.vebose ) { console.log("-- >> ", req.originalUrl); }
       return req.originalUrl;
+    },
+    userResHeaderDecorator: function(headers, userReq, userRes, proxyReq, proxyRes) {
+      if (headers.location && headers.location.indexOf('https://') > -1 ) {
+        let href = headers.location;
+        href = href.replace(`https://${babelProxy}/`, '/');
+        headers.location = href;
+      }
+      if (headers['set-cookie']) {
+        for(var i = 0; i < headers['set-cookie'].length; i++) {
+          let cookie = headers['set-cookie'][i];
+          headers['set-cookie'][i] = cookie.replace('=.hathitrust.org', '=localhost');
+        }
+      }
+      return headers;
     }
   }));
 
