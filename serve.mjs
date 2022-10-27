@@ -22,6 +22,31 @@ const argv = yargs(hideBin(process.argv)).argv;
 const babelProxy = argv.babel ? argv.babel : 'babel.hathitrust.org';
 const catalogProxy = argv.catalog ? argv.catalog : 'catalog.hathitrust.org';
 
+const proxyOptions = {
+  https: true,
+  proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
+    return proxyReqOpts;
+  },
+  proxyReqPathResolver: function (req) {
+    if (argv.vebose) { console.log("-- >> ", req.originalUrl); }
+    return req.originalUrl;
+  },
+  userResHeaderDecorator: function (headers, userReq, userRes, proxyReq, proxyRes) {
+    if (headers.location && headers.location.indexOf('https://') > -1) {
+      let href = headers.location;
+      href = href.replace(`https://${babelProxy}/`, '/').replace(`https://${catalogProxy}/` '/');
+      headers.location = href;
+    }
+    if (headers['set-cookie']) {
+      for (var i = 0; i < headers['set-cookie'].length; i++) {
+        let cookie = headers['set-cookie'][i];
+        headers['set-cookie'][i] = cookie.replace('=.hathitrust.org', '=localhost');
+      }
+    }
+    return headers;
+  }
+};
+
 function start() {
   let addr = "0.0.0.0";
   let port = 5555;
@@ -50,38 +75,9 @@ function listen(options) {
   app.use('/common/alicorn', express.static(path.join(rootPath, 'common/web/alicorn')));
   app.use('/common/mdp', express.static(path.join(rootPath, 'common/web/mdp')));
 
-  app.use(/\/Search|\/Record/, proxy(`https://${catalogProxy}/`, {
-    https: true,
-    proxyReqPathResolver: function(req) {
-      if ( argv.verbose ) { console.log("-- %%", req.originalUrl); }
-      return req.originalUrl;
-    }
-  }));
+  app.use(/\/Search|\/Record/, proxy(`https://${catalogProxy}/`, proxyOptions));
 
-  app.use('/cgi', proxy(`https://${babelProxy}/`, {
-    https: true,
-    proxyReqOptDecorator: function(proxyReqOpts, srcReq) {
-      return proxyReqOpts;
-    },
-    proxyReqPathResolver: function (req) {
-      if ( argv.vebose ) { console.log("-- >> ", req.originalUrl); }
-      return req.originalUrl;
-    },
-    userResHeaderDecorator: function(headers, userReq, userRes, proxyReq, proxyRes) {
-      if (headers.location && headers.location.indexOf('https://') > -1 ) {
-        let href = headers.location;
-        href = href.replace(`https://${babelProxy}/`, '/');
-        headers.location = href;
-      }
-      if (headers['set-cookie']) {
-        for(var i = 0; i < headers['set-cookie'].length; i++) {
-          let cookie = headers['set-cookie'][i];
-          headers['set-cookie'][i] = cookie.replace('=.hathitrust.org', '=localhost');
-        }
-      }
-      return headers;
-    }
-  }));
+  app.use('/cgi', proxy(`https://${babelProxy}/`, proxyOptions));
 
   app.use(['/pt', '/mb', '/ls', '/ping'], proxy(`https://${babelProxy}/`, {
     https: true,
@@ -109,6 +105,8 @@ function listen(options) {
   );
   log("Hit CTRL-C to stop the server");
 }
+
+app.use(/.*/, proxy(`https://www.hathitrust.org/`, proxyOptions);
 
 process.on("SIGINT", function () {
   log("Server stopped.".red);
